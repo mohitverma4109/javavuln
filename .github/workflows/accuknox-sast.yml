@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/sonarqube.yml'
+      - '.github/workflows/accuknox-sast.yml'
      
   pull_request:
     branches:
