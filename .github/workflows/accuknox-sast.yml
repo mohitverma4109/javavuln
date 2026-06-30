@@ -50,10 +50,23 @@ jobs:
           accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
           soft_fail: false
 
-      - name: Upload SQ JSON
+      - name: Find generated JSON
+        if: always()
+        run: |
+         echo "Current directory:"
+         pwd
+
+         echo "Repository files:"
+         ls -la
+
+         echo "Searching for JSON files..."
+         find . -name "*.json" -type f
+
+      - name: Upload all JSON files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sq-results
-          path: SQ-Accuknox-main.json
+         name: json-files
+         path: |
+          **/*.json
           if-no-files-found: warn
