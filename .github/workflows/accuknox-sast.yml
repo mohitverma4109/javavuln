@@ -1,62 +1,51 @@
-name: Build and SonarQube SAST Scan
+name: Build and AccuKnox SAST Scan
 
 on:
   push:
     branches:
       - main
-    paths:
-      - '.github/workflows/accuknox-sast.yml'
-     
+
   pull_request:
     branches:
       - main
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      
-      - name: Grant execute permission for gradlew
+      - name: Grant execute permission
         run: chmod +x gradlew
 
-      
-     # Build Project
       - name: Build Project
         run: ./gradlew clean build
 
-   # -----------------------------
-    # Verify Build Output
-    # -----------------------------
       - name: Verify JAR
         run: ls -lh build/libs/
 
-         Run AccuKnox SAST
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
       - name: Run AccuKnox SAST
         uses: accuknox/sast-scan-action@latest
         with:
-          # Set to false so the action performs the SonarQube scan
-          skip_sonar_scan: false
-
-          # SonarQube Configuration
-          sonar_project_key: SAST-Project1
+          skip_sonar_scan: true
+          sonar_project_key: Accuknox
           sonar_token: ${{ secrets.SONAR_TOKEN }}
           sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
-
-          # AccuKnox Configuration
           accuknox_endpoint: ${{ secrets.ACCUKNOX_ENDPOINT }}
           accuknox_token: ${{ secrets.ACCUKNOX_TOKEN }}
           accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
-
-          # Fail workflow if scan or quality gate fails
           soft_fail: false
