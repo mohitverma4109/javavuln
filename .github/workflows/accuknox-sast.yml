@@ -49,3 +49,11 @@ jobs:
           accuknox_token: ${{ secrets.ACCUKNOX_TOKEN }}
           accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
           soft_fail: false
+
+      - name: Upload SQ JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sq-results
+          path: SQ-Accuknox-main.json
+          if-no-files-found: warn
