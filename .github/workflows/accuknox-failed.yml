@@ -35,6 +35,11 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Show actual Sonar project info
+        run: |
+          echo "Contents of report-task.txt:"
+          cat .scannerwork/report-task.txt
           
       - name: Debug SonarQube API response
         run: |
