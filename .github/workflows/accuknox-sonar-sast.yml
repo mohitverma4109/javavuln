@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/accuknox-failed.yml"
+      - ".github/workflows/accuknox-sonar-sast.yml"
   pull_request:
     branches:
       - main
