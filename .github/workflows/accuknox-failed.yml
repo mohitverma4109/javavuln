@@ -86,18 +86,16 @@ jobs:
           RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "${{ secrets.SONAR_HOST_URL }}/api/hotspots/search?projectKey=Accuknox&status=TO_REVIEW")
           echo "$RESPONSE" | jq .
-
+ 
       - name: Fail on Critical/High vulnerabilities
         run: |
           ISSUES_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
-            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&impactSeverities=BLOCKER,HIGH&resolved=false")
+            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&impactSeverities=HIGH&resolved=false")
           echo "Raw issues response:"
           echo "$ISSUES_RESPONSE"
           echo "---"
           ISSUES_TOTAL=$(echo "$ISSUES_RESPONSE" | jq -r '.total // 0')
-          ...
 
-          # Check security hotspots with HIGH vulnerability probability
           HOTSPOTS_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "${{ secrets.SONAR_HOST_URL }}/api/hotspots/search?projectKey=Accuknox&status=TO_REVIEW")
           HOTSPOTS_TOTAL=$(echo "$HOTSPOTS_RESPONSE" | jq '[.hotspots[] | select(.vulnerabilityProbability=="HIGH")] | length')
