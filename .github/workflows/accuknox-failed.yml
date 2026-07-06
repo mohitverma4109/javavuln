@@ -60,6 +60,19 @@ jobs:
           echo "Searching for JSON files..."
           find . -name "*.json" -type f
 
+      - name: Debug - list and inspect JSON files
+        if: always()
+        run: |
+          echo "All JSON files found:"
+          find . -name "*.json" -type f
+          echo "---"
+          echo "Sample content of each (first 100 lines):"
+          for f in $(find . -name "*.json" -type f); do
+            echo "== $f =="
+            head -c 2000 "$f"
+            echo ""
+          done
+
       - name: Upload all JSON files
         if: always()
         uses: actions/upload-artifact@v4
@@ -69,6 +82,10 @@ jobs:
             **/*.json
             if-no-files-found: warn
 
+      - name: Fail on Critical/High vulnerabilities
+        if: always()
+        run: |
+          ...
       - name: Fail on Critical/High vulnerabilities
         if: always()
         run: |
