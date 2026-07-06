@@ -1,20 +1,16 @@
-name: Build and AccuKnox SAST Scan Failed
-
+name: Build and AccuKnox SAST Scan
 on:
   push:
     branches:
       - main
-    paths: 
+    paths:
       - ".github/workflows/accuknox-failed.yml"
-
   pull_request:
     branches:
       - main
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -41,68 +37,58 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: Run AccuKnox SAST
+        id: accuknox_scan
+        continue-on-error: true
         uses: accuknox/sast-scan-action@latest
         with:
-         skip_sonar_scan: true
-         sonar_project_key: Accuknox
-         sonar_token: ${{ secrets.SONAR_TOKEN }}
-         sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
-         accuknox_endpoint: ${{ secrets.ACCUKNOX_ENDPOINT }}
-         accuknox_token: ${{ secrets.ACCUKNOX_TOKEN }}
-         accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
-         soft_fail: true
-
- 
-      - name: Debug Sonar API
-        run: |
-          echo "Checking SonarQube API..."
-
-          curl -i \
-            -u "${{ secrets.SONAR_TOKEN }}:" \
-            "${{ secrets.SONAR_HOST_URL }}/api/server/version"
-
-          echo "--------------------------------"
-
-          curl -i \
-            -u "${{ secrets.SONAR_TOKEN }}:" \
-            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?projects=Accuknox&ps=1"
-
-      - name: Debug workspace
-        if: always()
-        run: |
-         echo "Current directory:"
-         pwd
-
-         echo "Everything related to AccuKnox"
-         find . | grep -i accuknox || true
-
-         echo "JSON files"
-         find . -name "*.json"
-
-         echo "SARIF files"
-         find . -name "*.sarif"
-
-         echo "XML files"
-         find . -name "*.xml"
-
+          skip_sonar_scan: true
+          sonar_project_key: Accuknox
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
+          accuknox_endpoint: ${{ secrets.ACCUKNOX_ENDPOINT }}
+          accuknox_token: ${{ secrets.ACCUKNOX_TOKEN }}
+          accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
+          soft_fail: false
 
       - name: Find generated JSON
         if: always()
         run: |
-         echo "Current directory:"
-         pwd
-
-         echo "Repository files:"
-         ls -la
-
-         echo "Searching for JSON files..."
-         find . -name "*.json" -type f
+          echo "Current directory:"
+          pwd
+          echo "Repository files:"
+          ls -la
+          echo "Searching for JSON files..."
+          find . -name "*.json" -type f
 
       - name: Upload all JSON files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-         name: json-files
-         path: |
-          **/*.json
-          if-no-files-found: warn
+          name: json-files
+          path: |
+            **/*.json
+            if-no-files-found: warn
+
+      - name: Fail on Critical/High vulnerabilities
+        if: always()
+        run: |
+          echo "Checking scan results for Critical/High severity findings..."
+          FOUND=0
+          for file in $(find . -name "*.json" -type f); do
+            COUNT=$(jq '[.. | objects | select(has("severity")) | .severity | select(test("^(CRITICAL|HIGH|BLOCKER)$"; "i"))] | length' "$file" 2>/dev/null || echo 0)
+            if [ "$COUNT" -gt 0 ]; then
+              echo "⚠️  Found $COUNT Critical/High/Blocker issue(s) in $file"
+              FOUND=$((FOUND + COUNT))
+            fi
+          done
+          echo "Total Critical/High/Blocker findings: $FOUND"
+          if [ "$FOUND" -gt 0 ]; then
+            echo "::error::Pipeline failed — $FOUND Critical/High severity vulnerabilities found."
+            exit 1
+          fi
+
+          # Also respect the AccuKnox action's own exit status
+          if [ "${{ steps.accuknox_scan.outcome }}" == "failure" ]; then
+            echo "::error::AccuKnox SAST scan step failed."
+            exit 1
+          fi
