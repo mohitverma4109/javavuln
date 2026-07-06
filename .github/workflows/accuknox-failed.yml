@@ -49,13 +49,15 @@ jobs:
         if: always()
         run: |
           echo "Searching entire runner filesystem for report-task.txt..."
-          find / -name "report-task.txt" -type f 2>/dev/null
+          find / -name "report-task.txt" -type f 2>/dev/null || true
           echo "---"
           echo "Contents of current working directory:"
           ls -la
           echo "---"
           echo "Looking for .scannerwork anywhere:"
-          find / -type d -name ".scannerwork" 2>/dev/null
+          find / -type d -name ".scannerwork" 2>/dev/null || true
+          echo "---"
+          echo "Done searching."
 
       - name: Wait for SonarQube analysis to finish
         run: |
