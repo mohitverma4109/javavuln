@@ -89,10 +89,13 @@ jobs:
 
       - name: Fail on Critical/High vulnerabilities
         run: |
-          # Check classic issues using new Clean Code Taxonomy severities (BLOCKER=Critical, HIGH=High)
           ISSUES_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&impactSeverities=BLOCKER,HIGH&resolved=false")
-          ISSUES_TOTAL=$(echo "$ISSUES_RESPONSE" | jq -r '.total')
+          echo "Raw issues response:"
+          echo "$ISSUES_RESPONSE"
+          echo "---"
+          ISSUES_TOTAL=$(echo "$ISSUES_RESPONSE" | jq -r '.total // 0')
+          ...
 
           # Check security hotspots with HIGH vulnerability probability
           HOTSPOTS_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
