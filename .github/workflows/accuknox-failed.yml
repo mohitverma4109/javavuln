@@ -45,6 +45,18 @@ jobs:
           accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
           soft_fail: false
 
+      - name: Debug - find report-task.txt anywhere
+        if: always()
+        run: |
+          echo "Searching entire runner filesystem for report-task.txt..."
+          find / -name "report-task.txt" -type f 2>/dev/null
+          echo "---"
+          echo "Contents of current working directory:"
+          ls -la
+          echo "---"
+          echo "Looking for .scannerwork anywhere:"
+          find / -type d -name ".scannerwork" 2>/dev/null
+
       - name: Wait for SonarQube analysis to finish
         run: |
           TASK_FILE=".scannerwork/report-task.txt"
