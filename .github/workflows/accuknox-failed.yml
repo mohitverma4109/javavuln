@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,48 +31,31 @@ jobs:
       - name: Verify JAR
         run: ls -lh build/libs/
 
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-      - name: Show actual Sonar project info
-        run: |
-          echo "Contents of report-task.txt:"
-          cat .scannerwork/report-task.txt
-
-      - name: Verify SONAR_HOST_URL matches actual server
-        run: |
-          if [ "${{ secrets.SONAR_HOST_URL }}" == "http://52.43.50.60:9000" ]; then
-            echo "MATCH: SONAR_HOST_URL is correct."
-          else
-            echo "MISMATCH: SONAR_HOST_URL does not match the server's actual serverUrl."
-            echo "Expected: http://52.43.50.60:9000"
-          fi
-          
-      - name: Debug SonarQube API response
-        run: |
-          echo "Testing connectivity to Sonar host..."
-          curl -s -o response.json -w "HTTP_STATUS:%{http_code}\nCONTENT_TYPE:%{content_type}\n" \
-            -u "${{ secrets.SONAR_TOKEN }}:" \
-            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&severities=BLOCKER,CRITICAL&resolved=false"
-          echo "---"
-          echo "Response body (first 500 chars):"
-          head -c 500 response.json
+      - name: Run AccuKnox SAST
+        id: accuknox_scan
+        continue-on-error: true
+        uses: accuknox/sast-scan-action@latest
+        with:
+          skip_sonar_scan: false
+          sonar_project_key: Accuknox
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
+          accuknox_endpoint: ${{ secrets.ACCUKNOX_ENDPOINT }}
+          accuknox_token: ${{ secrets.ACCUKNOX_TOKEN }}
+          accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
+          soft_fail: false
 
       - name: Wait for SonarQube analysis to finish
         run: |
           TASK_FILE=".scannerwork/report-task.txt"
           if [ ! -f "$TASK_FILE" ]; then
-            echo "report-task.txt not found — cannot verify analysis status."
+            echo "::error::report-task.txt not found — cannot verify analysis status."
             exit 1
           fi
           CE_TASK_URL=$(grep ceTaskUrl "$TASK_FILE" | cut -d'=' -f2-)
-          echo "Polling: $CE_TASK_URL"
           for i in $(seq 1 30); do
             STATUS=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "$CE_TASK_URL" | jq -r '.task.status')
-            echo "Status: $STATUS"
+            echo "Analysis status: $STATUS"
             if [ "$STATUS" == "SUCCESS" ]; then
               break
             elif [ "$STATUS" == "FAILED" ] || [ "$STATUS" == "CANCELED" ]; then
@@ -81,19 +65,10 @@ jobs:
             sleep 5
           done
 
-      - name: Check Security Hotspots too
-        run: |
-          RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
-            "${{ secrets.SONAR_HOST_URL }}/api/hotspots/search?projectKey=Accuknox&status=TO_REVIEW")
-          echo "$RESPONSE" | jq .
- 
       - name: Fail on Critical/High vulnerabilities
         run: |
           ISSUES_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&impactSeverities=HIGH&resolved=false")
-          echo "Raw issues response:"
-          echo "$ISSUES_RESPONSE"
-          echo "---"
           ISSUES_TOTAL=$(echo "$ISSUES_RESPONSE" | jq -r '.total // 0')
 
           HOTSPOTS_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
@@ -115,20 +90,6 @@ jobs:
             echo "::error::Pipeline failed — $TOTAL Critical/High severity issue(s)/hotspot(s) found in SonarQube."
             exit 1
           fi
-
-      - name: Run AccuKnox SAST
-        id: accuknox_scan
-        continue-on-error: true
-        uses: accuknox/sast-scan-action@latest
-        with:
-          skip_sonar_scan: true
-          sonar_project_key: Accuknox
-          sonar_token: ${{ secrets.SONAR_TOKEN }}
-          sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
-          accuknox_endpoint: ${{ secrets.ACCUKNOX_ENDPOINT }}
-          accuknox_token: ${{ secrets.ACCUKNOX_TOKEN }}
-          accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
-          soft_fail: false
 
       - name: Check AccuKnox scan outcome
         if: always()
