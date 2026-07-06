@@ -35,6 +35,16 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          
+      - name: Debug SonarQube API response
+        run: |
+          echo "Testing connectivity to Sonar host..."
+          curl -s -o response.json -w "HTTP_STATUS:%{http_code}\nCONTENT_TYPE:%{content_type}\n" \
+            -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&severities=BLOCKER,CRITICAL&resolved=false"
+          echo "---"
+          echo "Response body (first 500 chars):"
+          head -c 500 response.json
 
       - name: Wait for SonarQube analysis to finish
         run: |
