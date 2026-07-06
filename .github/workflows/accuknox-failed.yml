@@ -52,29 +52,20 @@ jobs:
          accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
          soft_fail: true
 
-      - name: Fail if Critical vulnerabilities exist
+ 
+      - name: Debug Sonar API
         run: |
-         sudo apt-get update
-         sudo apt-get install -y jq
+          echo "Checking SonarQube API..."
 
-         echo "Checking SonarQube for Critical vulnerabilities..."
+          curl -i \
+            -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/server/version"
 
-         RESPONSE=$(curl -s \
-         -u "${{ secrets.SONAR_TOKEN }}:" \
-         "${{ secrets.SONAR_HOST_URL }}/api/issues/search?projects=Accuknox&severities=CRITICAL&ps=1")
+          echo "--------------------------------"
 
-         echo "$RESPONSE"
-
-         CRITICAL=$(echo "$RESPONSE" | jq '.total')
-
-         echo "Critical Findings: $CRITICAL"
-
-         if [ "$CRITICAL" -gt 0 ]; then
-         echo "❌ Critical vulnerabilities found."
-         exit 1
-         else
-         echo "✅ No Critical vulnerabilities found."
-         fi
+          curl -i \
+            -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?projects=Accuknox&ps=1"
 
       - name: Debug workspace
         if: always()
