@@ -36,6 +36,39 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
+      - name: Wait for SonarQube analysis to finish
+        run: |
+          TASK_FILE=".scannerwork/report-task.txt"
+          if [ ! -f "$TASK_FILE" ]; then
+            echo "report-task.txt not found — cannot verify analysis status."
+            exit 1
+          fi
+          CE_TASK_URL=$(grep ceTaskUrl "$TASK_FILE" | cut -d'=' -f2-)
+          echo "Polling: $CE_TASK_URL"
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "$CE_TASK_URL" | jq -r '.task.status')
+            echo "Status: $STATUS"
+            if [ "$STATUS" == "SUCCESS" ]; then
+              break
+            elif [ "$STATUS" == "FAILED" ] || [ "$STATUS" == "CANCELED" ]; then
+              echo "::error::SonarQube analysis task $STATUS"
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Fail on Critical/High/Blocker vulnerabilities
+        run: |
+          RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&severities=BLOCKER,CRITICAL&resolved=false&types=VULNERABILITY,BUG,CODE_SMELL")
+          TOTAL=$(echo "$RESPONSE" | jq -r '.total')
+          echo "Critical/Blocker issues found: $TOTAL"
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "$RESPONSE" | jq -r '.issues[] | "- [\(.severity)] \(.component): \(.message)"'
+            echo "::error::Pipeline failed — $TOTAL Critical/Blocker severity issue(s) found in SonarQube."
+            exit 1
+          fi
+
       - name: Run AccuKnox SAST
         id: accuknox_scan
         continue-on-error: true
@@ -50,61 +83,9 @@ jobs:
           accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
           soft_fail: false
 
-      - name: Find generated JSON
+      - name: Check AccuKnox scan outcome
         if: always()
         run: |
-          echo "Current directory:"
-          pwd
-          echo "Repository files:"
-          ls -la
-          echo "Searching for JSON files..."
-          find . -name "*.json" -type f
-
-      - name: Debug - list and inspect JSON files
-        if: always()
-        run: |
-          echo "All JSON files found:"
-          find . -name "*.json" -type f
-          echo "---"
-          echo "Sample content of each (first 100 lines):"
-          for f in $(find . -name "*.json" -type f); do
-            echo "== $f =="
-            head -c 2000 "$f"
-            echo ""
-          done
-
-      - name: Upload all JSON files
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: json-files
-          path: |
-            **/*.json
-            if-no-files-found: warn
-
-      - name: Fail on Critical/High vulnerabilities
-        if: always()
-        run: |
-          ...
-      - name: Fail on Critical/High vulnerabilities
-        if: always()
-        run: |
-          echo "Checking scan results for Critical/High severity findings..."
-          FOUND=0
-          for file in $(find . -name "*.json" -type f); do
-            COUNT=$(jq '[.. | objects | select(has("severity")) | .severity | select(test("^(CRITICAL|HIGH|BLOCKER)$"; "i"))] | length' "$file" 2>/dev/null || echo 0)
-            if [ "$COUNT" -gt 0 ]; then
-              echo "⚠️  Found $COUNT Critical/High/Blocker issue(s) in $file"
-              FOUND=$((FOUND + COUNT))
-            fi
-          done
-          echo "Total Critical/High/Blocker findings: $FOUND"
-          if [ "$FOUND" -gt 0 ]; then
-            echo "::error::Pipeline failed — $FOUND Critical/High severity vulnerabilities found."
-            exit 1
-          fi
-
-          # Also respect the AccuKnox action's own exit status
           if [ "${{ steps.accuknox_scan.outcome }}" == "failure" ]; then
             echo "::error::AccuKnox SAST scan step failed."
             exit 1
