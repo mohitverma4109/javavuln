@@ -32,8 +32,6 @@ jobs:
         run: ls -lh build/libs/
 
       - name: Run AccuKnox SAST
-        id: accuknox_scan
-        continue-on-error: true
         uses: accuknox/sast-scan-action@latest
         with:
           skip_sonar_scan: false
@@ -44,71 +42,3 @@ jobs:
           accuknox_token: ${{ secrets.ACCUKNOX_TOKEN }}
           accuknox_label: ${{ secrets.ACCUKNOX_LABEL }}
           soft_fail: false
-
-      - name: Debug - find report-task.txt anywhere
-        if: always()
-        run: |
-          echo "Searching entire runner filesystem for report-task.txt..."
-          find / -name "report-task.txt" -type f 2>/dev/null || true
-          echo "---"
-          echo "Contents of current working directory:"
-          ls -la
-          echo "---"
-          echo "Looking for .scannerwork anywhere:"
-          find / -type d -name ".scannerwork" 2>/dev/null || true
-          echo "---"
-          echo "Done searching."
-
-      - name: Wait for SonarQube analysis to finish
-        run: |
-          TASK_FILE=".scannerwork/report-task.txt"
-          if [ ! -f "$TASK_FILE" ]; then
-            echo "::error::report-task.txt not found — cannot verify analysis status."
-            exit 1
-          fi
-          CE_TASK_URL=$(grep ceTaskUrl "$TASK_FILE" | cut -d'=' -f2-)
-          for i in $(seq 1 30); do
-            STATUS=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "$CE_TASK_URL" | jq -r '.task.status')
-            echo "Analysis status: $STATUS"
-            if [ "$STATUS" == "SUCCESS" ]; then
-              break
-            elif [ "$STATUS" == "FAILED" ] || [ "$STATUS" == "CANCELED" ]; then
-              echo "::error::SonarQube analysis task $STATUS"
-              exit 1
-            fi
-            sleep 5
-          done
-
-      - name: Fail on Critical/High vulnerabilities
-        run: |
-          ISSUES_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
-            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&impactSeverities=HIGH&resolved=false")
-          ISSUES_TOTAL=$(echo "$ISSUES_RESPONSE" | jq -r '.total // 0')
-
-          HOTSPOTS_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
-            "${{ secrets.SONAR_HOST_URL }}/api/hotspots/search?projectKey=Accuknox&status=TO_REVIEW")
-          HOTSPOTS_TOTAL=$(echo "$HOTSPOTS_RESPONSE" | jq '[.hotspots[] | select(.vulnerabilityProbability=="HIGH")] | length')
-
-          echo "Critical/High issues: $ISSUES_TOTAL"
-          echo "High-probability hotspots: $HOTSPOTS_TOTAL"
-
-          if [ "$ISSUES_TOTAL" -gt 0 ]; then
-            echo "$ISSUES_RESPONSE" | jq -r '.issues[] | "- [\(.severity)] \(.component): \(.message)"'
-          fi
-          if [ "$HOTSPOTS_TOTAL" -gt 0 ]; then
-            echo "$HOTSPOTS_RESPONSE" | jq -r '.hotspots[] | select(.vulnerabilityProbability=="HIGH") | "- [HOTSPOT-HIGH] \(.component): \(.message)"'
-          fi
-
-          TOTAL=$((ISSUES_TOTAL + HOTSPOTS_TOTAL))
-          if [ "$TOTAL" -gt 0 ]; then
-            echo "::error::Pipeline failed — $TOTAL Critical/High severity issue(s)/hotspot(s) found in SonarQube."
-            exit 1
-          fi
-
-      - name: Check AccuKnox scan outcome
-        if: always()
-        run: |
-          if [ "${{ steps.accuknox_scan.outcome }}" == "failure" ]; then
-            echo "::error::AccuKnox SAST scan step failed."
-            exit 1
-          fi
