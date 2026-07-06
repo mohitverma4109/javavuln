@@ -40,6 +40,15 @@ jobs:
         run: |
           echo "Contents of report-task.txt:"
           cat .scannerwork/report-task.txt
+
+      - name: Verify SONAR_HOST_URL matches actual server
+        run: |
+          if [ "${{ secrets.SONAR_HOST_URL }}" == "http://52.43.50.60:9000" ]; then
+            echo "MATCH: SONAR_HOST_URL is correct."
+          else
+            echo "MISMATCH: SONAR_HOST_URL does not match the server's actual serverUrl."
+            echo "Expected: http://52.43.50.60:9000"
+          fi
           
       - name: Debug SonarQube API response
         run: |
