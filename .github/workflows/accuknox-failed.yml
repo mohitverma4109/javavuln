@@ -81,6 +81,12 @@ jobs:
             sleep 5
           done
 
+      - name: Check Security Hotspots too
+        run: |
+          RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/hotspots/search?projectKey=Accuknox&status=TO_REVIEW")
+          echo "$RESPONSE" | jq .
+
       - name: Fail on Critical/High/Blocker vulnerabilities
         run: |
           RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
