@@ -53,10 +53,12 @@ jobs:
 
     env:
       TARGET_URL: ${{ inputs.target_url || secrets.TARGET_URL }}
+      # Shared across SAST and DAST workflows — same tenant, same auth.
       ACCUKNOX_ENDPOINT: ${{ secrets.ACCUKNOX_ENDPOINT }}
       ACCUKNOX_TOKEN: ${{ secrets.ACCUKNOX_TOKEN }}
       ACCUKNOX_TENANT_ID: ${{ secrets.ACCUKNOX_TENANT_ID }}
-      ACCUKNOX_LABEL: ${{ secrets.ACCUKNOX_LABEL }}
+      # DAST-specific label so findings don't mix with SAST in the console.
+      ACCUKNOX_DAST_LABEL: ${{ secrets.ACCUKNOX_DAST_LABEL }}
 
     steps:
       - name: Checkout Source Code
@@ -66,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for var in TARGET_URL ACCUKNOX_ENDPOINT ACCUKNOX_TOKEN ACCUKNOX_TENANT_ID ACCUKNOX_LABEL; do
+          for var in TARGET_URL ACCUKNOX_ENDPOINT ACCUKNOX_TOKEN ACCUKNOX_TENANT_ID ACCUKNOX_DAST_LABEL; do
             if [ -z "${!var:-}" ]; then
               echo "::error::Required secret/input '$var' is not set."
               missing=1
@@ -90,7 +92,7 @@ jobs:
           target_url: ${{ env.TARGET_URL }}
           accuknox_endpoint: ${{ env.ACCUKNOX_ENDPOINT }}
           accuknox_token: ${{ env.ACCUKNOX_TOKEN }}
-          accuknox_label: ${{ env.ACCUKNOX_LABEL }}
+          accuknox_label: ${{ env.ACCUKNOX_DAST_LABEL }}
           scan_type: ${{ inputs.scan_type || 'baseline' }}
           severity_threshold: ${{ inputs.severity_threshold || 'HIGH' }}
 
@@ -107,5 +109,5 @@ jobs:
             echo "| Severity gate | ${{ inputs.severity_threshold || 'HIGH' }} |"
             echo "| Run ID        | ${{ github.run_id }} |"
             echo ""
-            echo "Findings uploaded to AccuKnox Console under label \`${{ secrets.ACCUKNOX_LABEL }}\` (redacted value not shown)."
+            echo "Findings uploaded to AccuKnox Console under the DAST label (value redacted)."
           } | tee -a "$GITHUB_STEP_SUMMARY"
