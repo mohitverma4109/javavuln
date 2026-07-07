@@ -6,9 +6,7 @@ on:
       - main
     paths:
       - ".github/workflows/dast.yml"
-  schedule:
-    # Nightly scan at 02:00 UTC — adjust to your change window.
-    - cron: "0 2 * * *"
+  
   workflow_dispatch:
     inputs:
       target_url:
@@ -56,7 +54,6 @@ jobs:
       # Shared across SAST and DAST workflows — same tenant, same auth.
       ACCUKNOX_ENDPOINT: ${{ secrets.ACCUKNOX_ENDPOINT }}
       ACCUKNOX_TOKEN: ${{ secrets.ACCUKNOX_TOKEN }}
-      ACCUKNOX_TENANT_ID: ${{ secrets.ACCUKNOX_TENANT_ID }}
       # DAST-specific label so findings don't mix with SAST in the console.
       ACCUKNOX_DAST_LABEL: ${{ secrets.ACCUKNOX_DAST_LABEL }}
 
@@ -68,7 +65,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for var in TARGET_URL ACCUKNOX_ENDPOINT ACCUKNOX_TOKEN ACCUKNOX_TENANT_ID ACCUKNOX_DAST_LABEL; do
+          for var in TARGET_URL ACCUKNOX_ENDPOINT ACCUKNOX_TOKEN  ACCUKNOX_DAST_LABEL; do
             if [ -z "${!var:-}" ]; then
               echo "::error::Required secret/input '$var' is not set."
               missing=1
