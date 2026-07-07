@@ -110,6 +110,7 @@ jobs:
           fi
 
       - name: Run AccuKnox SAST
+        if: always()
         id: accuknox_scan
         continue-on-error: true
         uses: accuknox/sast-scan-action@latest
