@@ -95,7 +95,7 @@ jobs:
           accuknox_endpoint: ${{ env.ACCUKNOX_ENDPOINT }}
           accuknox_token: ${{ env.ACCUKNOX_TOKEN }}
           accuknox_label: ${{ env.ACCUKNOX_DAST_LABEL }}
-          scan_type: ${{ inputs.scan_type || 'baseline' }}
+          dast_scan_type: ${{ inputs.scan_type || 'full-scan' }}
           severity_threshold: ${{ inputs.severity_threshold || 'HIGH' }}
 
       - name: Scan Summary
