@@ -57,6 +57,32 @@ jobs:
             sleep 5
           done
 
+      - name: Check SonarQube Quality Gate
+        run: |
+          set -euo pipefail
+          TASK_FILE=".scannerwork/report-task.txt"
+          CE_TASK_URL=$(grep ceTaskUrl "$TASK_FILE" | cut -d'=' -f2-)
+          ANALYSIS_ID=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" "$CE_TASK_URL" | jq -r '.task.analysisId')
+
+          if [ -z "$ANALYSIS_ID" ] || [ "$ANALYSIS_ID" == "null" ]; then
+            echo "::error::Could not retrieve analysisId — Quality Gate check cannot proceed."
+            exit 1
+          fi
+
+          GATE_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/qualitygates/project_status?analysisId=$ANALYSIS_ID")
+
+          GATE_STATUS=$(echo "$GATE_RESPONSE" | jq -r '.projectStatus.status')
+          echo "Quality Gate status: $GATE_STATUS"
+
+          if [ "$GATE_STATUS" != "OK" ]; then
+            echo "$GATE_RESPONSE" | jq -r '.projectStatus.conditions[] | select(.status!="OK") | "- [\(.status)] \(.metricKey): actual=\(.actualValue) threshold=\(.errorThreshold // .comparator)"'
+            echo "::error::SonarQube Quality Gate failed with status: $GATE_STATUS"
+            exit 1
+          fi
+
+          echo "✅ Quality Gate passed."
+
       - name: Fail on Critical/High vulnerabilities
         run: |
           ISSUES_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
