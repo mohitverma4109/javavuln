@@ -84,6 +84,7 @@ jobs:
           echo "✅ Quality Gate passed."
 
       - name: Fail on Critical/High vulnerabilities
+        if: always()
         run: |
           ISSUES_RESPONSE=$(curl -s -u "${{ secrets.SONAR_TOKEN }}:" \
             "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=Accuknox&impactSeverities=HIGH&resolved=false")
