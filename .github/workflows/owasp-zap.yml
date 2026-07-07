@@ -1,1 +1,111 @@
+name: AccuKnox DAST Scan
 
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/accuknox-dast.yml"
+  schedule:
+    # Nightly scan at 02:00 UTC — adjust to your change window.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Override target URL (defaults to TARGET_URL secret)"
+        required: false
+        type: string
+      scan_type:
+        description: "Scan type"
+        required: false
+        type: choice
+        options:
+          - baseline
+          - full-scan
+        default: baseline
+      severity_threshold:
+        description: "Fail the pipeline at or above this severity"
+        required: false
+        type: choice
+        options:
+          - HIGH
+          - MEDIUM
+          - LOW
+          - INFORMATIONAL
+        default: HIGH
+
+# Prevent overlapping scans against the same target from racing each other.
+concurrency:
+  group: accuknox-dast-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  accuknox-dast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # Use a GitHub Environment ("production") to gate this job behind
+    # required reviewers / protection rules and to scope secrets to it.
+    environment: production
+
+    permissions:
+      contents: read
+
+    env:
+      TARGET_URL: ${{ inputs.target_url || secrets.TARGET_URL }}
+      ACCUKNOX_ENDPOINT: ${{ secrets.ACCUKNOX_ENDPOINT }}
+      ACCUKNOX_TOKEN: ${{ secrets.ACCUKNOX_TOKEN }}
+      ACCUKNOX_TENANT_ID: ${{ secrets.ACCUKNOX_TENANT_ID }}
+      ACCUKNOX_LABEL: ${{ secrets.ACCUKNOX_LABEL }}
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Validate Required Secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for var in TARGET_URL ACCUKNOX_ENDPOINT ACCUKNOX_TOKEN ACCUKNOX_TENANT_ID ACCUKNOX_LABEL; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Required secret/input '$var' is not set."
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+
+      - name: Verify Target URL is Reachable
+        run: |
+          set -euo pipefail
+          echo "Checking target reachability..."
+          curl -sSf --max-time 15 --retry 3 --retry-delay 5 -I "$TARGET_URL" \
+            || { echo "::error::Target URL did not respond successfully."; exit 1; }
+
+      - name: Run AccuKnox DAST Scan
+        id: accuknox_dast
+        uses: accuknox/dast-scan-action@v1.0.2
+        with:
+          target_url: ${{ env.TARGET_URL }}
+          accuknox_endpoint: ${{ env.ACCUKNOX_ENDPOINT }}
+          accuknox_token: ${{ env.ACCUKNOX_TOKEN }}
+          accuknox_label: ${{ env.ACCUKNOX_LABEL }}
+          scan_type: ${{ inputs.scan_type || 'baseline' }}
+          severity_threshold: ${{ inputs.severity_threshold || 'HIGH' }}
+
+      - name: Scan Summary
+        if: always()
+        run: |
+          {
+            echo "### AccuKnox DAST Scan Summary"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Target        | (redacted — see workflow inputs) |"
+            echo "| Scan type     | ${{ inputs.scan_type || 'baseline' }} |"
+            echo "| Severity gate | ${{ inputs.severity_threshold || 'HIGH' }} |"
+            echo "| Run ID        | ${{ github.run_id }} |"
+            echo ""
+            echo "Findings uploaded to AccuKnox Console under label \`${{ secrets.ACCUKNOX_LABEL }}\` (redacted value not shown)."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
