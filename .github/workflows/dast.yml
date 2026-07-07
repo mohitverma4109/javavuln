@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - ".github/workflows/accuknox-dast.yml"
+      - ".github/workflows/dast.yml"
   schedule:
     # Nightly scan at 02:00 UTC — adjust to your change window.
     - cron: "0 2 * * *"
